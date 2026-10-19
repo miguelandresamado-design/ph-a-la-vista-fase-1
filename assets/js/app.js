@@ -4,11 +4,11 @@ import { summarize, validPh } from "./modules/stats.js";
 import { loadAgronomy, interpretValue } from "./modules/agronomy.js";
 import { enqueue, pendingOperations, discardPendingForRecord } from "./modules/sync.js";
 import { requestPosition } from "./modules/geolocation.js";
-import { YKS01Adapter } from "./modules/bluetooth.js";
+import { YKS01Adapter } from "./modules/bluetooth.js?v=0.4.0";
 import { lineChart, seriesColor, trendText, heatPlot } from "./modules/charts.js";
 import { downloadCSV } from "./modules/csv.js";
 import { activeLots, normalizeLotInput, validateLotInput } from "./modules/lots.js";
-import { APP_CONFIG } from "../../config/app.js";
+import { APP_CONFIG } from "../../config/app.js?v=0.4.0";
 import { PilotAuth } from "./modules/auth.js";
 import { PilotRemote } from "./modules/remote.js";
 
@@ -18,7 +18,7 @@ const bottomNav = document.querySelector("#bottomNav");
 const networkButton = document.querySelector("#networkButton");
 const networkLabel = document.querySelector("#networkLabel");
 const toastElement = document.querySelector("#toast");
-const sensor = new YKS01Adapter();
+const sensor = new YKS01Adapter(APP_CONFIG.bluetooth);
 const pilotMode = APP_CONFIG.mode === "pilot";
 const auth = new PilotAuth(APP_CONFIG);
 const remote = new PilotRemote(APP_CONFIG, auth);
@@ -28,6 +28,9 @@ let state = loadState();
 let demoData;
 let agronomy;
 let pendingLocation = null;
+let sensorStatus = sensor.supportsWebBluetooth()
+  ? "Enciende el YK-S01 y pulsa conectar. En iPhone, abre esta página dentro de Bluefy."
+  : "Bluetooth no está disponible en este navegador. Puedes ingresar el pH manualmente.";
 
 function loadState() {
   try { return { ...defaultState, ...JSON.parse(localStorage.getItem("ph-fase1-state") || "{}") }; }
@@ -80,11 +83,17 @@ async function homeView() {
 
 function readingCard(value = null, mode = "Sin lectura") {
   const result = Number.isFinite(value) ? interpretation(value) : { label: "Esperando lectura" };
-  return `<div class="reading-card"><div class="reading-head"><strong>Lectura actual</strong>${statusBadge(mode)}</div><div class="ph-value" id="phValue">${Number.isFinite(value) ? `pH ${value.toFixed(2)}` : "—"}</div><div class="interpretation" id="phInterpretation">${escapeHTML(result.label)}</div>${scale(value)}</div>`;
+  return `<div class="reading-card"><div class="reading-head"><strong>Lectura actual</strong>${statusBadge(mode)}</div><div class="ph-value" id="phValue">${Number.isFinite(value) ? `pH ${value.toFixed(2)}` : "—"}</div><div class="interpretation" id="phInterpretation">${escapeHTML(result.label)}</div><div class="reading-temperature" id="readingTemperature">Temperatura no disponible</div>${scale(value)}</div>`;
+}
+
+function bluetoothPanel() {
+  const connected = sensor.isConnected();
+  const unavailable = !sensor.supportsWebBluetooth();
+  return `<section class="bluetooth-panel" aria-label="Conexión con medidor de pH"><div class="row"><div><strong>Medidor YK-S01</strong><span class="bluetooth-device-copy">Conexión Bluetooth directa</span></div>${statusBadge(connected ? "Conectado" : "No conectado", connected ? "good" : "")}</div><p class="bluetooth-status" id="bluetoothStatus" aria-live="polite">${escapeHTML(sensorStatus)}</p><div class="button-row"><button class="button secondary" id="connectBluetooth" type="button" ${connected || unavailable ? "disabled" : ""}>Conectar YK-S01</button><button class="button ghost" id="disconnectBluetooth" type="button" ${connected ? "" : "disabled"}>Desconectar</button></div></section>`;
 }
 
 async function quickView() {
-  return `${heading("Lectura rápida", "Medición individual", "Guarda un valor sin seleccionar finca ni lote.")}<div class="notice warning"><strong>Rangos de prueba</strong><br>La interpretación de café es provisional hasta aprobación agronómica.</div>${readingCard()}${pilotMode ? "" : `<button class="button secondary" id="connectButton" type="button">Usar lectura simulada YK-S01</button><p class="meta">La simulación está identificada. En iPhone, la conexión real se realizará dentro de Bluefy cuando estén validados los UUID.</p>`}<label class="field"><span>Lectura manual</span><div class="manual-row"><input class="input" id="manualPh" inputmode="decimal" type="number" min="0" max="14" step="0.01" placeholder="Ej. 5,3"><button class="button secondary" id="useManual" type="button">Usar</button></div></label><label class="check-row"><input id="quickGps" type="checkbox">Solicitar ubicación al guardar</label><div class="gps-state" id="gpsState">La medición puede guardarse sin GPS.</div><button class="button primary" id="saveQuick" type="button" disabled>Guardar medición</button>`;
+  return `${heading("Lectura rápida", "Medición individual", "Guarda un valor sin seleccionar finca ni lote.")}<div class="notice warning"><strong>Rangos de prueba</strong><br>La interpretación de café es provisional hasta aprobación agronómica.</div>${readingCard()}${bluetoothPanel()}<label class="field"><span>Lectura manual</span><div class="manual-row"><input class="input" id="manualPh" inputmode="decimal" type="number" min="0" max="14" step="0.01" placeholder="Ej. 5,3"><button class="button secondary" id="useManual" type="button">Usar</button></div></label><label class="check-row"><input id="quickGps" type="checkbox">Solicitar ubicación al guardar</label><div class="gps-state" id="gpsState">La medición puede guardarse sin GPS.</div><button class="button primary" id="saveQuick" type="button" disabled>Guardar medición</button>`;
 }
 
 async function farmsView() {
@@ -134,7 +143,7 @@ async function captureView(sessionId) {
   const points = await measurementsForSession(session.id);
   const farm = currentFarm(session.farm_id), lot = currentLot(session.lot_id), next = points.length + 1;
   const canUndo = points.length && points.at(-1).sync_status !== "synced";
-  return `${heading("Captura", `Punto ${Math.min(next, session.target_samples)} de ${session.target_samples}`, `${farm.name} · ${lot.name}`)}<div class="progress-meta"><span>Recorrido</span><span>${points.length}/${session.target_samples}</span></div><div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="${session.target_samples}" aria-valuenow="${points.length}"><span style="width:${points.length / session.target_samples * 100}%"></span></div>${readingCard()}${pilotMode ? "" : `<button class="button secondary" id="connectButton" type="button">Usar lectura simulada YK-S01</button><p class="meta">La lectura se identificará como simulada. La entrada manual permanece disponible.</p>`}<label class="field"><span>Lectura manual</span><div class="manual-row"><input class="input" id="manualPh" inputmode="decimal" type="number" min="0" max="14" step="0.01" placeholder="Ej. 5,3"><button class="button secondary" id="useManual" type="button">Usar</button></div></label><label class="field"><span>Temperatura opcional</span><input class="input" id="temperature" inputmode="decimal" type="number" min="-10" max="60" step="0.1" placeholder="Ej. 21,5"></label><label class="check-row"><input id="captureGps" type="checkbox" checked>Solicitar GPS al guardar</label><div class="gps-state" id="gpsState">La ubicación se solicitará al guardar este punto.</div><button class="button primary" id="savePoint" type="button" disabled>Guardar punto</button>${canUndo ? `<button class="button secondary" id="undoPoint" type="button">Corregir último punto</button>` : points.length ? `<p class="meta">El último punto ya fue sincronizado y no puede eliminarse desde el teléfono.</p>` : ""}`;
+  return `${heading("Captura", `Punto ${Math.min(next, session.target_samples)} de ${session.target_samples}`, `${farm.name} · ${lot.name}`)}<div class="progress-meta"><span>Recorrido</span><span>${points.length}/${session.target_samples}</span></div><div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="${session.target_samples}" aria-valuenow="${points.length}"><span style="width:${points.length / session.target_samples * 100}%"></span></div>${readingCard()}${bluetoothPanel()}<label class="field"><span>Lectura manual</span><div class="manual-row"><input class="input" id="manualPh" inputmode="decimal" type="number" min="0" max="14" step="0.01" placeholder="Ej. 5,3"><button class="button secondary" id="useManual" type="button">Usar</button></div></label><label class="field"><span>Temperatura opcional</span><input class="input" id="temperature" inputmode="decimal" type="number" min="-10" max="60" step="0.1" placeholder="Ej. 21,5"></label><label class="check-row"><input id="captureGps" type="checkbox" checked>Solicitar GPS al guardar</label><div class="gps-state" id="gpsState">La ubicación se solicitará al guardar este punto.</div><button class="button primary" id="savePoint" type="button" disabled>Guardar punto</button>${canUndo ? `<button class="button secondary" id="undoPoint" type="button">Corregir último punto</button>` : points.length ? `<p class="meta">El último punto ya fue sincronizado y no puede eliminarse desde el teléfono.</p>` : ""}`;
 }
 
 async function resultView(sessionId) {
@@ -190,21 +199,56 @@ function notFoundView() { return `${heading("No disponible", "No encontramos est
 async function render() {
   updateChrome();
   const { name, id } = route();
+  if (["quick", "capture"].includes(name)) sensor.startPolling(); else sensor.stopPolling();
   if (!state.activated && !["activate", "set-password"].includes(name)) { go("activate"); return; }
   const views = { activate: activationView, "set-password": setPasswordView, home: homeView, quick: quickView, farms: farmsView, farm: () => farmView(id), lots: () => lotsView(id), lotnew: () => lotFormView(id, true), lotedit: () => lotFormView(id), new: () => newSessionView(id), capture: () => captureView(id), result: () => resultView(id), history: () => historyView(id), compare: () => compareView(id), maps: () => mapsView(id), sync: syncView };
   try { app.innerHTML = await (views[name] || notFoundView)(); bind(name, id); app.focus({ preventScroll: true }); window.scrollTo({ top: 0, behavior: "instant" }); }
   catch (error) { console.error(error); app.innerHTML = `${heading("Error", "No pudimos abrir esta pantalla", error.message)}<button class="button primary" type="button" data-go="home">Volver al inicio</button>`; bind(name, id); }
 }
 
-function updateReading(value, source) {
-  const phValue = document.querySelector("#phValue"), label = document.querySelector("#phInterpretation"), input = document.querySelector("#manualPh"), save = document.querySelector("#saveQuick") || document.querySelector("#savePoint"), badge = document.querySelector(".reading-card .status-badge"), marker = document.querySelector(".scale-marker");
-  if (input) { input.value = value; input.dataset.source = source; }
+function updateReading(value, source, temperatureC = null) {
+  const phValue = document.querySelector("#phValue"), label = document.querySelector("#phInterpretation"), temperatureLabel = document.querySelector("#readingTemperature"), input = document.querySelector("#manualPh"), temperatureInput = document.querySelector("#temperature"), save = document.querySelector("#saveQuick") || document.querySelector("#savePoint"), badge = document.querySelector(".reading-card .status-badge"), marker = document.querySelector(".scale-marker");
+  if (input) {
+    input.value = value;
+    input.dataset.source = source;
+    if (source === "bluetooth" && Number.isFinite(temperatureC)) input.dataset.temperature = String(temperatureC);
+    else delete input.dataset.temperature;
+  }
+  if (temperatureInput && source === "bluetooth" && Number.isFinite(temperatureC)) {
+    temperatureInput.value = temperatureC;
+    temperatureInput.dataset.sensorFilled = "true";
+  } else if (temperatureInput?.dataset.sensorFilled) {
+    temperatureInput.value = "";
+    delete temperatureInput.dataset.sensorFilled;
+  }
   const valid = validPh(value); if (phValue) phValue.textContent = valid ? `pH ${Number(value).toFixed(2)}` : "—";
   if (label) label.textContent = valid ? interpretation(Number(value)).label : "Esperando lectura";
-  if (badge) badge.textContent = source === "simulated" ? "Lectura simulada" : source === "manual" ? "Lectura manual" : "Sin lectura";
+  if (badge) badge.textContent = source === "bluetooth" ? "Bluetooth YK-S01" : source === "manual" ? "Lectura manual" : "Sin lectura";
+  if (temperatureLabel) temperatureLabel.textContent = Number.isFinite(temperatureC) ? `Temperatura ${Number(temperatureC).toFixed(1)} °C` : "Temperatura no disponible";
   if (marker) marker.style.left = `${valid ? Math.max(2, Math.min(98, Number(value) / 14 * 100)) : 0}%`;
   if (save) save.disabled = !valid;
 }
+
+function updateBluetoothControls() {
+  const connected = sensor.isConnected();
+  const status = document.querySelector("#bluetoothStatus");
+  const badge = document.querySelector(".bluetooth-panel .status-badge");
+  const connect = document.querySelector("#connectBluetooth");
+  const disconnect = document.querySelector("#disconnectBluetooth");
+  if (status) status.textContent = sensorStatus;
+  if (badge) { badge.textContent = connected ? "Conectado" : "No conectado"; badge.classList.toggle("good", connected); }
+  if (connect) connect.disabled = connected || sensor.isConnecting() || !sensor.supportsWebBluetooth();
+  if (disconnect) disconnect.disabled = !connected;
+}
+
+sensor.setHandlers({
+  onReading: reading => {
+    if (!["quick", "capture"].includes(route().name)) return;
+    updateReading(reading.ph, "bluetooth", reading.temperatureC);
+  },
+  onStatus: message => { sensorStatus = message; updateBluetoothControls(); },
+  onConnectionChange: () => updateBluetoothControls()
+});
 
 async function captureLocation(enabled, targetId) {
   pendingLocation = null; const target = document.querySelector(targetId);
@@ -240,12 +284,19 @@ function bind(name, id) {
   if (["quick", "capture"].includes(name)) {
     const input = document.querySelector("#manualPh"); input.addEventListener("input", () => updateReading(input.value, "manual"));
     document.querySelector("#useManual").addEventListener("click", () => updateReading(input.value, "manual"));
-    document.querySelector("#connectButton")?.addEventListener("click", () => { updateReading(sensor.simulateReading(), "simulated"); toast("Lectura simulada recibida"); });
+    document.querySelector("#connectBluetooth")?.addEventListener("click", async event => {
+      event.currentTarget.disabled = true;
+      try { await sensor.connect(); }
+      catch (failure) { sensorStatus = failure.message || "No fue posible conectar el YK-S01."; updateBluetoothControls(); }
+    });
+    document.querySelector("#disconnectBluetooth")?.addEventListener("click", () => sensor.disconnect());
+    updateBluetoothControls();
   }
   if (name === "quick") document.querySelector("#saveQuick").addEventListener("click", async () => {
     const input = document.querySelector("#manualPh"), location = await captureLocation(document.querySelector("#quickGps").checked, "#gpsState");
     const now = new Date().toISOString(); const technician = activeTechnician();
-    const record = { id: crypto.randomUUID(), session_id: null, technician_id: technician.id, country_id: technician.country_id, sample_number: null, ph: Number(input.value), temperature_c: null, latitude: location?.latitude ?? null, longitude: location?.longitude ?? null, gps_accuracy_m: location?.accuracy ?? null, source: input.dataset.source || "manual", captured_at: now, updated_at: now, sync_status: "pending" };
+    const sensorTemperature = Number(input.dataset.temperature);
+    const record = { id: crypto.randomUUID(), session_id: null, technician_id: technician.id, country_id: technician.country_id, sample_number: null, ph: Number(input.value), temperature_c: Number.isFinite(sensorTemperature) ? sensorTemperature : null, latitude: location?.latitude ?? null, longitude: location?.longitude ?? null, gps_accuracy_m: location?.accuracy ?? null, source: input.dataset.source || "manual", captured_at: now, updated_at: now, sync_status: "pending" };
     await put("measurements", record); await enqueue("measurements", record); toast("Medición guardada localmente"); go("home");
   });
   if (["lotnew", "lotedit"].includes(name)) {
@@ -287,7 +338,7 @@ function bind(name, id) {
   }
   if (name === "sync" && pilotMode) {
     document.querySelector("#syncNow")?.addEventListener("click", async event => { const button = event.currentTarget, error = document.querySelector("#syncError"); button.disabled = true; error.textContent = ""; try { const count = await remote.syncPending(); toast(`${count} cambios sincronizados`); await startPilot(); render(); } catch (failure) { error.textContent = failure.message; button.disabled = false; } });
-    document.querySelector("#signOut")?.addEventListener("click", async () => { await auth.signOut(); state.activated = false; state.technicianId = null; state.currentSessionId = null; saveState(); demoData = null; go("activate"); });
+    document.querySelector("#signOut")?.addEventListener("click", async () => { sensor.disconnect(); await auth.signOut(); state.activated = false; state.technicianId = null; state.currentSessionId = null; saveState(); demoData = null; go("activate"); });
   }
 }
 

@@ -4,10 +4,10 @@ Versión piloto cerrada para validar el flujo de medición y monitoreo de pH por
 
 ## Estado de esta versión
 
-- Versión: `0.3.0-pilot-auth`
+- Versión: `0.4.0-pilot-bluetooth`
 - Modo: piloto cerrado por invitación
 - Backend: Supabase Auth y sincronización manual conectados
-- Bluetooth: simulación identificada; conexión real bloqueada hasta validar UUID y paquetes YINMIK YK-S01
+- Bluetooth: conexión real YINMIK YK-S01 mediante FF01/FF02, notificaciones y lectura periódica cada 2 segundos
 - Interpretación de café: rangos provisionales de demostración
 
 ## Ejecutar
@@ -30,7 +30,7 @@ Abrir `http://localhost:8080`. No abrir con `file://`.
 - Fincas y ubicación en modo de solo lectura para el técnico.
 - Creación, edición, archivo y reactivación de lotes.
 - Conservación del historial cuando se archiva un lote.
-- Medición individual manual o simulada.
+- Medición individual manual o mediante YINMIK YK-S01.
 - Jornadas de 10 o 15 puntos.
 - GPS opcional y temperatura.
 - Persistencia con IndexedDB.
@@ -59,8 +59,7 @@ Subir el contenido de esta carpeta a la raíz del repositorio. `index.html`, `ma
 
 1. Aprobar rangos agronómicos de café.
 2. Probar las políticas RLS con tres usuarios de prueba y una cuenta administradora con MFA.
-3. Incorporar UUID y decodificación BLE reales del YK-S01.
-4. Validar Android Chrome y Bluefy en iPhone.
-5. Probar GPS, instalación PWA y reapertura offline en dispositivos físicos.
-6. Validar el procedimiento de invitación, recuperación y baja de usuarios.
-7. Definir autorización, retención y eliminación de correo personal y geolocalización.
+3. Revalidar la conexión física en Android Chrome y Bluefy en iPhone después de integrar Supabase.
+4. Probar GPS, instalación PWA y reapertura offline en dispositivos físicos.
+5. Validar el procedimiento de invitación, recuperación y baja de usuarios.
+6. Definir autorización, retención y eliminación de correo personal y geolocalización.

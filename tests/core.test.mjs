@@ -9,6 +9,7 @@ import { toCSV } from "../assets/js/modules/csv.js";
 import { deduplicateOperations } from "../assets/js/modules/sync.js";
 import { escapeXML, trendText } from "../assets/js/modules/charts.js";
 import { activeLots, normalizeLotInput, validateLotInput } from "../assets/js/modules/lots.js";
+import { decodeYinmikFrame, decodeYinmikReading } from "../assets/js/modules/bluetooth.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const agronomy = JSON.parse(fs.readFileSync(path.join(root, "config/agronomy.json"), "utf8"));
@@ -101,11 +102,37 @@ test("tendencia se deriva de valores", () => {
 
 test("Service Worker usa caché versionado y lista estática", () => {
   const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
-  assert.match(sw, /ph-a-la-vista-fase1-v0\.3\.1-pilot/);
+  assert.match(sw, /ph-a-la-vista-fase1-v0\.4\.0-bluetooth/);
   assert.match(sw, /allowed\.has/);
   assert.doesNotMatch(sw, /supabase\.co/);
   const paths = [...sw.matchAll(/"\.\/([^"\n]+)"/g)].map(match => match[1].split("?")[0]).filter(file => file && file !== "");
   paths.forEach(file => assert.equal(fs.existsSync(path.join(root, file)), true, `Falta ${file}`));
+});
+
+test("decodifica el paquete validado del YINMIK YK-S01", () => {
+  const packet = "FF81 FE5A FFFE FFFF FFFF FFFF FDF7 FD57 DAAA EBFF FFFF FFFF FFFF FFF7 1400 0000 0000 0000 0000 0000 0000 0000 00";
+  const hex = packet.replace(/\s/g, "");
+  const bytes = Uint8Array.from(hex.match(/.{2}/g).map(value => Number.parseInt(value, 16)));
+  const frame = decodeYinmikFrame(new DataView(bytes.buffer));
+  assert.deepEqual(frame.slice(0, 2), [0x01, 0x02]);
+  const reading = decodeYinmikReading(new DataView(bytes.buffer));
+  assert.equal(reading.ph, 8.2);
+  assert.equal(reading.temperatureC, 26);
+  assert.equal(reading.rawPayload, hex);
+  assert.equal(decodeYinmikReading(new DataView(new ArrayBuffer(3))), null);
+});
+
+test("la interfaz piloto expone conexión real y elimina la simulación", () => {
+  const appSource = fs.readFileSync(path.join(root, "assets/js/app.js"), "utf8");
+  const bluetoothSource = fs.readFileSync(path.join(root, "assets/js/modules/bluetooth.js"), "utf8");
+  const configSource = fs.readFileSync(path.join(root, "config/app.js"), "utf8");
+  assert.match(appSource, /id="connectBluetooth"/);
+  assert.match(appSource, /id="disconnectBluetooth"/);
+  assert.doesNotMatch(appSource, /simulateReading|Lectura simulada/);
+  assert.match(bluetoothSource, /startNotifications/);
+  assert.match(bluetoothSource, /setInterval/);
+  assert.match(configSource, /0000ff01-0000-1000-8000-00805f9b34fb/);
+  assert.match(configSource, /0000ff02-0000-1000-8000-00805f9b34fb/);
 });
 
 test("la página aplica una política de contenido restrictiva", () => {

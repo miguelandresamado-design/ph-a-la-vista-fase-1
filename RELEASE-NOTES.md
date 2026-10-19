@@ -1,4 +1,4 @@
-# pH a la vista · Fase 1 · v0.3.0-pilot-auth
+# pH a la vista · Fase 1 · v0.4.0-pilot-bluetooth
 
 Versión conectada a Supabase para iniciar las pruebas controladas de autenticación, aislamiento y sincronización. Todavía no contiene correos ni contraseñas en el repositorio.
 
@@ -31,12 +31,14 @@ Versión conectada a Supabase para iniciar las pruebas controladas de autenticac
 - Protección contra fórmulas maliciosas en CSV.
 - Política CSP y política de referencia en la aplicación.
 - Preparación para separar y eliminar el almacenamiento offline por usuario autenticado.
+- Conexión real con YINMIK YK-S01 mediante el servicio FF01 y la característica FF02.
+- Recepción por notificaciones y lectura periódica cada 2 segundos para conservar la segunda lectura y las siguientes.
+- Compatibilidad prevista con Chrome Android y Bluefy en iPhone, además de entrada manual de respaldo.
 
 ## Simulado o pendiente
 
-- La simulación YK-S01 se oculta en modo piloto; la lectura real sigue pendiente.
 - Los rangos de café son provisionales para demostración.
-- GPS, Bluefy, Bluetooth real y funcionamiento offline requieren prueba manual en dispositivos.
+- GPS, Bluefy, Bluetooth real y funcionamiento offline requieren revalidación manual en dispositivos después de esta integración.
 
 ## Verificación automatizada
 
