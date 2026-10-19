@@ -62,7 +62,7 @@ function updateChrome() {
 }
 
 async function activationView() {
-  if (pilotMode) return `<section class="activation"><div class="activation-mark">pH</div>${heading("Acceso al piloto", "Inicia sesión", "Usa únicamente la cuenta personal que fue invitada al piloto.")}<div class="notice">${statusBadge("Acceso controlado", "good")}<p style="margin:10px 0 0">No está habilitado el registro público. Tus fincas se cargarán de acuerdo con la asignación de tu cuenta.</p></div><form id="loginForm"><label class="field"><span>Correo electrónico</span><input class="input" id="loginEmail" type="email" autocomplete="username" required></label><label class="field"><span>Contraseña</span><input class="input" id="loginPassword" type="password" minlength="8" autocomplete="current-password" required></label><p id="loginError" class="form-error" role="alert"></p><button class="button primary" id="loginButton" type="submit">Ingresar</button></form><p class="meta" style="text-align:center">Si aún no tienes acceso, solicita una invitación al administrador del piloto.</p></section>`;
+  if (pilotMode) return `<section class="activation"><div class="activation-mark">pH</div>${heading("Acceso al piloto", "Inicia sesión", "Usa únicamente la cuenta personal que fue invitada al piloto.")}<div class="notice">${statusBadge("Acceso controlado", "good")}<p style="margin:10px 0 0">No está habilitado el registro público. Tus fincas se cargarán de acuerdo con la asignación de tu cuenta.</p></div><form id="loginForm"><label class="field"><span>Correo electrónico</span><input class="input" id="loginEmail" type="email" autocomplete="username" required></label><label class="field"><span>Contraseña</span><input class="input" id="loginPassword" type="password" minlength="8" autocomplete="current-password" required></label><p id="loginError" class="form-error" role="alert"></p><button class="button primary" id="loginButton" type="submit">Ingresar</button><button class="button secondary" id="sendRecovery" type="button">Crear o recuperar contraseña</button></form><p class="meta" style="text-align:center">Solo las cuentas previamente invitadas pueden solicitar este enlace.</p></section>`;
   return `<section class="activation"><div class="activation-mark">pH</div>${heading("Bienvenido", "Activa tu acceso", "Selecciona un perfil ficticio para explorar la Fase 1. No se utilizan cuentas ni contraseñas reales.")}<div class="notice">${statusBadge("Modo demostración", "good")}<p style="margin:10px 0 0">Los datos permanecen en este dispositivo. Supabase todavía no está conectado.</p></div><form id="activationForm"><label class="field"><span>Técnico</span><select id="technicianSelect" class="select">${demoData.technicians.map(item => `<option value="${item.id}" ${item.id === state.technicianId ? "selected" : ""}>${item.code} · ${item.name}</option>`).join("")}</select></label><button class="button primary" type="submit">Entrar en modo demostración</button></form></section>`;
 }
 
@@ -222,6 +222,14 @@ function bind(name, id) {
     button.disabled = true; error.textContent = "";
     try { await auth.signIn(document.querySelector("#loginEmail").value.trim(), document.querySelector("#loginPassword").value); await startPilot(); go("home"); }
     catch (failure) { error.textContent = failure.message === "Invalid login credentials" ? "Correo o contraseña incorrectos." : failure.message; button.disabled = false; }
+  });
+  if (name === "activate" && pilotMode) document.querySelector("#sendRecovery").addEventListener("click", async () => {
+    const email = document.querySelector("#loginEmail"), error = document.querySelector("#loginError"), button = document.querySelector("#sendRecovery");
+    if (!email.reportValidity()) return;
+    button.disabled = true; error.textContent = "";
+    const redirectTo = `${new URL("./", location.href).href.split("#")[0].split("?")[0]}#/set-password`;
+    try { await auth.requestPasswordReset(email.value.trim(), redirectTo); error.textContent = "Revisa tu correo. Si la cuenta está habilitada, recibirás un enlace para crear la contraseña."; }
+    catch (failure) { error.textContent = failure.message; button.disabled = false; }
   });
   if (name === "set-password") document.querySelector("#setPasswordForm").addEventListener("submit", async event => {
     event.preventDefault(); const password = document.querySelector("#newPassword").value, confirm = document.querySelector("#confirmPassword").value, error = document.querySelector("#passwordError"), button = document.querySelector("#passwordButton");

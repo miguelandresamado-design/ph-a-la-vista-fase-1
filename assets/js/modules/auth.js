@@ -26,6 +26,9 @@ export class PilotAuth {
     const session = await this.request("/auth/v1/token?grant_type=password", { method: "POST", body: JSON.stringify({ email, password }) });
     return this.saveSession(session);
   }
+  async requestPasswordReset(email, redirectTo) {
+    return this.request("/auth/v1/recover", { method: "POST", body: JSON.stringify({ email, redirect_to: redirectTo }) });
+  }
   async refresh() {
     const current = this.getSession();
     if (!current?.refresh_token) throw new Error("La sesión no puede renovarse");
