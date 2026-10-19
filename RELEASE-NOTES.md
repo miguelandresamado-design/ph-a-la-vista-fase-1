@@ -1,11 +1,13 @@
-# pH a la vista · Fase 1 · v0.2.1-security
+# pH a la vista · Fase 1 · v0.3.0-pilot-auth
 
-Versión de endurecimiento previa al piloto. Todavía no contiene usuarios ni datos reales.
+Versión conectada a Supabase para iniciar las pruebas controladas de autenticación, aislamiento y sincronización. Todavía no contiene correos ni contraseñas en el repositorio.
 
 ## Incluye
 
-- Tres perfiles ficticios de Colombia.
-- Cinco fincas por técnico y tres lotes por finca.
+- Inicio de sesión cerrado con Supabase Auth.
+- Recepción de enlaces de invitación y creación de contraseña.
+- Perfil, fincas y lotes filtrados por RLS.
+- Almacenamiento offline separado por UUID de usuario.
 - Fincas de solo lectura para el técnico.
 - Creación y edición de lotes dentro de fincas asignadas.
 - Archivo y reactivación sin borrar jornadas ni mediciones.
@@ -19,7 +21,8 @@ Versión de endurecimiento previa al piloto. Todavía no contiene usuarios ni da
 - Comparación temporal de máximo tres lotes.
 - Comparación espacial de exactamente dos lotes.
 - Exportación CSV.
-- Cola local de sincronización.
+- Sincronización autenticada de lotes, jornadas y mediciones.
+- Conservación de cambios locales pendientes al actualizar datos remotos.
 - Manifest, Service Worker e iconos PWA.
 - Esquema inicial de Supabase con RLS.
 - Segunda migración con validación relacional, mediciones inmutables y mínimos privilegios.
@@ -31,8 +34,7 @@ Versión de endurecimiento previa al piloto. Todavía no contiene usuarios ni da
 
 ## Simulado o pendiente
 
-- La lectura YK-S01 es simulada y se identifica como tal.
-- Supabase no está conectado; la pantalla muestra únicamente operaciones locales pendientes.
+- La simulación YK-S01 se oculta en modo piloto; la lectura real sigue pendiente.
 - Los rangos de café son provisionales para demostración.
 - GPS, Bluefy, Bluetooth real y funcionamiento offline requieren prueba manual en dispositivos.
 

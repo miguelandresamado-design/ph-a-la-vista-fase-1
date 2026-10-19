@@ -101,7 +101,7 @@ test("tendencia se deriva de valores", () => {
 
 test("Service Worker usa caché versionado y lista estática", () => {
   const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
-  assert.match(sw, /ph-a-la-vista-fase1-v0\.2\.1-security/);
+  assert.match(sw, /ph-a-la-vista-fase1-v0\.3\.0-pilot/);
   assert.match(sw, /allowed\.has/);
   assert.doesNotMatch(sw, /supabase\.co/);
   const paths = [...sw.matchAll(/"\.\/([^"\n]+)"/g)].map(match => match[1]).filter(file => file && file !== "");

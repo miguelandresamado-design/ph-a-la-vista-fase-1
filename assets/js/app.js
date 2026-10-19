@@ -1,4 +1,4 @@
-import { get, getAll, put, remove } from "./core/db.js";
+import { get, getAll, put, remove, setStorageScope } from "./core/db.js";
 import { seedDemoData } from "./core/seed.js";
 import { summarize, validPh } from "./modules/stats.js";
 import { loadAgronomy, interpretValue } from "./modules/agronomy.js";
@@ -8,6 +8,9 @@ import { YKS01Adapter } from "./modules/bluetooth.js";
 import { lineChart, seriesColor, trendText, heatPlot } from "./modules/charts.js";
 import { downloadCSV } from "./modules/csv.js";
 import { activeLots, normalizeLotInput, validateLotInput } from "./modules/lots.js";
+import { APP_CONFIG } from "../../config/app.js";
+import { PilotAuth } from "./modules/auth.js";
+import { PilotRemote } from "./modules/remote.js";
 
 const app = document.querySelector("#app");
 const backButton = document.querySelector("#backButton");
@@ -16,6 +19,9 @@ const networkButton = document.querySelector("#networkButton");
 const networkLabel = document.querySelector("#networkLabel");
 const toastElement = document.querySelector("#toast");
 const sensor = new YKS01Adapter();
+const pilotMode = APP_CONFIG.mode === "pilot";
+const auth = new PilotAuth(APP_CONFIG);
+const remote = new PilotRemote(APP_CONFIG, auth);
 
 const defaultState = { activated: false, technicianId: "tech-co-01", currentSessionId: null, compareLots: [], mapLots: [], mapCampaignId: "camp-2026-10" };
 let state = loadState();
@@ -32,7 +38,7 @@ function escapeHTML(value) { return String(value ?? "").replace(/[&<>"']/g, char
 function toast(message) { toastElement.textContent = message; toastElement.classList.add("show"); setTimeout(() => toastElement.classList.remove("show"), 2400); }
 function go(path) { location.hash = `#/${path}`; }
 function route() { const raw = location.hash.replace(/^#\//, "") || (state.activated ? "home" : "activate"); const [name, id] = raw.split("/"); return { name, id }; }
-function activeTechnician() { return demoData.technicians.find(item => item.id === state.technicianId) || demoData.technicians[0]; }
+function activeTechnician() { return demoData?.technicians?.find(item => item.id === state.technicianId) || demoData?.technicians?.[0]; }
 function farmsForTechnician() { return demoData.farms.filter(item => item.technician_id === activeTechnician().id); }
 function lotsForFarm(farmId, includeArchived = false) { const lots = demoData.lots.filter(item => item.farm_id === farmId); return includeArchived ? lots : activeLots(lots); }
 function currentFarm(farmId) { return demoData.farms.find(item => item.id === farmId); }
@@ -47,16 +53,21 @@ function interpretation(value) { return interpretValue(value, "coffee", agronomy
 
 function updateChrome() {
   const { name } = route();
-  const hiddenBack = ["activate", "home"].includes(name);
+  const hiddenBack = ["activate", "set-password", "home"].includes(name);
   backButton.classList.toggle("is-hidden", hiddenBack);
-  bottomNav.classList.toggle("is-hidden", name === "activate");
+  bottomNav.classList.toggle("is-hidden", ["activate", "set-password"].includes(name));
   bottomNav.querySelectorAll("a").forEach(link => link.classList.toggle("active", link.dataset.nav === name || (["farm", "lots", "lotnew", "lotedit", "new", "history", "compare", "maps"].includes(name) && link.dataset.nav === "farms")));
   networkLabel.textContent = navigator.onLine ? "En línea" : "Offline";
   networkButton.classList.toggle("offline", !navigator.onLine);
 }
 
 async function activationView() {
+  if (pilotMode) return `<section class="activation"><div class="activation-mark">pH</div>${heading("Acceso al piloto", "Inicia sesión", "Usa únicamente la cuenta personal que fue invitada al piloto.")}<div class="notice">${statusBadge("Acceso controlado", "good")}<p style="margin:10px 0 0">No está habilitado el registro público. Tus fincas se cargarán de acuerdo con la asignación de tu cuenta.</p></div><form id="loginForm"><label class="field"><span>Correo electrónico</span><input class="input" id="loginEmail" type="email" autocomplete="username" required></label><label class="field"><span>Contraseña</span><input class="input" id="loginPassword" type="password" minlength="8" autocomplete="current-password" required></label><p id="loginError" class="form-error" role="alert"></p><button class="button primary" id="loginButton" type="submit">Ingresar</button></form><p class="meta" style="text-align:center">Si aún no tienes acceso, solicita una invitación al administrador del piloto.</p></section>`;
   return `<section class="activation"><div class="activation-mark">pH</div>${heading("Bienvenido", "Activa tu acceso", "Selecciona un perfil ficticio para explorar la Fase 1. No se utilizan cuentas ni contraseñas reales.")}<div class="notice">${statusBadge("Modo demostración", "good")}<p style="margin:10px 0 0">Los datos permanecen en este dispositivo. Supabase todavía no está conectado.</p></div><form id="activationForm"><label class="field"><span>Técnico</span><select id="technicianSelect" class="select">${demoData.technicians.map(item => `<option value="${item.id}" ${item.id === state.technicianId ? "selected" : ""}>${item.code} · ${item.name}</option>`).join("")}</select></label><button class="button primary" type="submit">Entrar en modo demostración</button></form></section>`;
+}
+
+async function setPasswordView() {
+  return `<section class="activation"><div class="activation-mark">pH</div>${heading("Invitación verificada", "Crea tu contraseña", "Debe tener al menos 10 caracteres y ser exclusiva para este piloto.")}<form id="setPasswordForm"><label class="field"><span>Nueva contraseña</span><input class="input" id="newPassword" type="password" minlength="10" autocomplete="new-password" required></label><label class="field"><span>Confirmar contraseña</span><input class="input" id="confirmPassword" type="password" minlength="10" autocomplete="new-password" required></label><p id="passwordError" class="form-error" role="alert"></p><button class="button primary" id="passwordButton" type="submit">Guardar contraseña</button></form></section>`;
 }
 
 async function homeView() {
@@ -73,7 +84,7 @@ function readingCard(value = null, mode = "Sin lectura") {
 }
 
 async function quickView() {
-  return `${heading("Lectura rápida", "Medición individual", "Guarda un valor sin seleccionar finca ni lote.")}<div class="notice warning"><strong>Rangos de prueba</strong><br>La interpretación de café es provisional hasta aprobación agronómica.</div>${readingCard()}<button class="button secondary" id="connectButton" type="button">Usar lectura simulada YK-S01</button><p class="meta">La simulación está identificada. En iPhone, la conexión real se realizará dentro de Bluefy cuando estén validados los UUID.</p><label class="field"><span>Lectura manual</span><div class="manual-row"><input class="input" id="manualPh" inputmode="decimal" type="number" min="0" max="14" step="0.01" placeholder="Ej. 5,3"><button class="button secondary" id="useManual" type="button">Usar</button></div></label><label class="check-row"><input id="quickGps" type="checkbox">Solicitar ubicación al guardar</label><div class="gps-state" id="gpsState">La medición puede guardarse sin GPS.</div><button class="button primary" id="saveQuick" type="button" disabled>Guardar medición</button>`;
+  return `${heading("Lectura rápida", "Medición individual", "Guarda un valor sin seleccionar finca ni lote.")}<div class="notice warning"><strong>Rangos de prueba</strong><br>La interpretación de café es provisional hasta aprobación agronómica.</div>${readingCard()}${pilotMode ? "" : `<button class="button secondary" id="connectButton" type="button">Usar lectura simulada YK-S01</button><p class="meta">La simulación está identificada. En iPhone, la conexión real se realizará dentro de Bluefy cuando estén validados los UUID.</p>`}<label class="field"><span>Lectura manual</span><div class="manual-row"><input class="input" id="manualPh" inputmode="decimal" type="number" min="0" max="14" step="0.01" placeholder="Ej. 5,3"><button class="button secondary" id="useManual" type="button">Usar</button></div></label><label class="check-row"><input id="quickGps" type="checkbox">Solicitar ubicación al guardar</label><div class="gps-state" id="gpsState">La medición puede guardarse sin GPS.</div><button class="button primary" id="saveQuick" type="button" disabled>Guardar medición</button>`;
 }
 
 async function farmsView() {
@@ -122,7 +133,8 @@ async function captureView(sessionId) {
   if (!session || session.technician_id !== activeTechnician().id) return notFoundView();
   const points = await measurementsForSession(session.id);
   const farm = currentFarm(session.farm_id), lot = currentLot(session.lot_id), next = points.length + 1;
-  return `${heading("Captura", `Punto ${Math.min(next, session.target_samples)} de ${session.target_samples}`, `${farm.name} · ${lot.name}`)}<div class="progress-meta"><span>Recorrido</span><span>${points.length}/${session.target_samples}</span></div><div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="${session.target_samples}" aria-valuenow="${points.length}"><span style="width:${points.length / session.target_samples * 100}%"></span></div>${readingCard()}<button class="button secondary" id="connectButton" type="button">Usar lectura simulada YK-S01</button><p class="meta">La lectura se identificará como simulada. La entrada manual permanece disponible.</p><label class="field"><span>Lectura manual</span><div class="manual-row"><input class="input" id="manualPh" inputmode="decimal" type="number" min="0" max="14" step="0.01" placeholder="Ej. 5,3"><button class="button secondary" id="useManual" type="button">Usar</button></div></label><label class="field"><span>Temperatura opcional</span><input class="input" id="temperature" inputmode="decimal" type="number" min="-10" max="60" step="0.1" placeholder="Ej. 21,5"></label><label class="check-row"><input id="captureGps" type="checkbox" checked>Solicitar GPS al guardar</label><div class="gps-state" id="gpsState">La ubicación se solicitará al guardar este punto.</div><button class="button primary" id="savePoint" type="button" disabled>Guardar punto</button>${points.length ? `<button class="button secondary" id="undoPoint" type="button">Corregir último punto</button>` : ""}`;
+  const canUndo = points.length && points.at(-1).sync_status !== "synced";
+  return `${heading("Captura", `Punto ${Math.min(next, session.target_samples)} de ${session.target_samples}`, `${farm.name} · ${lot.name}`)}<div class="progress-meta"><span>Recorrido</span><span>${points.length}/${session.target_samples}</span></div><div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="${session.target_samples}" aria-valuenow="${points.length}"><span style="width:${points.length / session.target_samples * 100}%"></span></div>${readingCard()}${pilotMode ? "" : `<button class="button secondary" id="connectButton" type="button">Usar lectura simulada YK-S01</button><p class="meta">La lectura se identificará como simulada. La entrada manual permanece disponible.</p>`}<label class="field"><span>Lectura manual</span><div class="manual-row"><input class="input" id="manualPh" inputmode="decimal" type="number" min="0" max="14" step="0.01" placeholder="Ej. 5,3"><button class="button secondary" id="useManual" type="button">Usar</button></div></label><label class="field"><span>Temperatura opcional</span><input class="input" id="temperature" inputmode="decimal" type="number" min="-10" max="60" step="0.1" placeholder="Ej. 21,5"></label><label class="check-row"><input id="captureGps" type="checkbox" checked>Solicitar GPS al guardar</label><div class="gps-state" id="gpsState">La ubicación se solicitará al guardar este punto.</div><button class="button primary" id="savePoint" type="button" disabled>Guardar punto</button>${canUndo ? `<button class="button secondary" id="undoPoint" type="button">Corregir último punto</button>` : points.length ? `<p class="meta">El último punto ya fue sincronizado y no puede eliminarse desde el teléfono.</p>` : ""}`;
 }
 
 async function resultView(sessionId) {
@@ -169,7 +181,8 @@ async function syncView() {
   const operations = await pendingOperations();
   const groups = operations.reduce((acc, item) => { acc[item.entity] = (acc[item.entity] || 0) + 1; return acc; }, {});
   const labels = { sessions: "Jornadas", measurements: "Mediciones", lots: "Cambios en lotes" };
-  return `${heading("Datos locales", "Sincronización", "El trabajo queda almacenado en este teléfono hasta conectar el backend.")}<div class="notice warning"><strong>Supabase no conectado</strong><br>Esta versión no finge una escritura remota. Todos los estados pendientes son reales y locales.</div><article class="card" style="margin-top:16px"><div class="row"><h2 style="margin:0">${operations.length} pendientes</h2>${statusBadge(navigator.onLine ? "En línea" : "Offline", navigator.onLine ? "good" : "warning")}</div>${Object.entries(groups).map(([entity, count]) => `<div class="sync-row"><span>${labels[entity] || escapeHTML(entity)}</span><strong>${count}</strong></div>`).join("") || `<p class="meta" style="margin:16px 0 0">No hay operaciones pendientes.</p>`}</article><button class="button primary" type="button" disabled>Conectar Supabase para sincronizar</button><p class="meta">La integración remota y las pruebas RLS corresponden a la siguiente versión.</p>`;
+  if (!pilotMode) return `${heading("Datos locales", "Sincronización", "El trabajo queda almacenado en este teléfono hasta conectar el backend.")}<div class="notice warning"><strong>Supabase no conectado</strong><br>Esta versión no finge una escritura remota. Todos los estados pendientes son reales y locales.</div><article class="card" style="margin-top:16px"><div class="row"><h2 style="margin:0">${operations.length} pendientes</h2>${statusBadge(navigator.onLine ? "En línea" : "Offline", navigator.onLine ? "good" : "warning")}</div>${Object.entries(groups).map(([entity, count]) => `<div class="sync-row"><span>${labels[entity] || escapeHTML(entity)}</span><strong>${count}</strong></div>`).join("") || `<p class="meta" style="margin:16px 0 0">No hay operaciones pendientes.</p>`}</article><button class="button primary" type="button" disabled>Conectar Supabase para sincronizar</button>`;
+  return `${heading("Datos del piloto", "Sincronización segura", "Los cambios se guardan primero en este dispositivo y se envían únicamente con tu sesión.")}<article class="card" style="margin-top:16px"><div class="row"><h2 style="margin:0">${operations.length} pendientes</h2>${statusBadge(navigator.onLine ? "En línea" : "Offline", navigator.onLine ? "good" : "warning")}</div>${Object.entries(groups).map(([entity, count]) => `<div class="sync-row"><span>${labels[entity] || escapeHTML(entity)}</span><strong>${count}</strong></div>`).join("") || `<p class="meta" style="margin:16px 0 0">Todos los registros locales están sincronizados.</p>`}</article><p id="syncError" class="form-error" role="alert"></p><button class="button primary" id="syncNow" type="button" ${!navigator.onLine || !operations.length ? "disabled" : ""}>Sincronizar ahora</button><button class="button secondary" id="signOut" type="button">Cerrar sesión</button><p class="meta">Al cerrar sesión, los datos locales permanecen separados y protegidos bajo este usuario en el dispositivo.</p>`;
 }
 
 function notFoundView() { return `${heading("No disponible", "No encontramos este registro", "Vuelve al inicio e inténtalo nuevamente.")}<button class="button primary" type="button" data-go="home">Ir al inicio</button>`; }
@@ -177,8 +190,8 @@ function notFoundView() { return `${heading("No disponible", "No encontramos est
 async function render() {
   updateChrome();
   const { name, id } = route();
-  if (!state.activated && name !== "activate") { go("activate"); return; }
-  const views = { activate: activationView, home: homeView, quick: quickView, farms: farmsView, farm: () => farmView(id), lots: () => lotsView(id), lotnew: () => lotFormView(id, true), lotedit: () => lotFormView(id), new: () => newSessionView(id), capture: () => captureView(id), result: () => resultView(id), history: () => historyView(id), compare: () => compareView(id), maps: () => mapsView(id), sync: syncView };
+  if (!state.activated && !["activate", "set-password"].includes(name)) { go("activate"); return; }
+  const views = { activate: activationView, "set-password": setPasswordView, home: homeView, quick: quickView, farms: farmsView, farm: () => farmView(id), lots: () => lotsView(id), lotnew: () => lotFormView(id, true), lotedit: () => lotFormView(id), new: () => newSessionView(id), capture: () => captureView(id), result: () => resultView(id), history: () => historyView(id), compare: () => compareView(id), maps: () => mapsView(id), sync: syncView };
   try { app.innerHTML = await (views[name] || notFoundView)(); bind(name, id); app.focus({ preventScroll: true }); window.scrollTo({ top: 0, behavior: "instant" }); }
   catch (error) { console.error(error); app.innerHTML = `${heading("Error", "No pudimos abrir esta pantalla", error.message)}<button class="button primary" type="button" data-go="home">Volver al inicio</button>`; bind(name, id); }
 }
@@ -203,11 +216,23 @@ async function captureLocation(enabled, targetId) {
 
 function bind(name, id) {
   app.querySelectorAll("[data-go]").forEach(element => element.addEventListener("click", () => go(element.dataset.go)));
-  if (name === "activate") document.querySelector("#activationForm").addEventListener("submit", event => { event.preventDefault(); state.technicianId = document.querySelector("#technicianSelect").value; state.activated = true; saveState(); go("home"); });
+  if (name === "activate" && !pilotMode) document.querySelector("#activationForm").addEventListener("submit", event => { event.preventDefault(); state.technicianId = document.querySelector("#technicianSelect").value; state.activated = true; saveState(); go("home"); });
+  if (name === "activate" && pilotMode) document.querySelector("#loginForm").addEventListener("submit", async event => {
+    event.preventDefault(); const button = document.querySelector("#loginButton"), error = document.querySelector("#loginError");
+    button.disabled = true; error.textContent = "";
+    try { await auth.signIn(document.querySelector("#loginEmail").value.trim(), document.querySelector("#loginPassword").value); await startPilot(); go("home"); }
+    catch (failure) { error.textContent = failure.message === "Invalid login credentials" ? "Correo o contraseña incorrectos." : failure.message; button.disabled = false; }
+  });
+  if (name === "set-password") document.querySelector("#setPasswordForm").addEventListener("submit", async event => {
+    event.preventDefault(); const password = document.querySelector("#newPassword").value, confirm = document.querySelector("#confirmPassword").value, error = document.querySelector("#passwordError"), button = document.querySelector("#passwordButton");
+    if (password !== confirm) { error.textContent = "Las contraseñas no coinciden."; return; }
+    button.disabled = true; error.textContent = "";
+    try { await auth.updatePassword(password); await startPilot(); go("home"); } catch (failure) { error.textContent = failure.message; button.disabled = false; }
+  });
   if (["quick", "capture"].includes(name)) {
     const input = document.querySelector("#manualPh"); input.addEventListener("input", () => updateReading(input.value, "manual"));
     document.querySelector("#useManual").addEventListener("click", () => updateReading(input.value, "manual"));
-    document.querySelector("#connectButton").addEventListener("click", () => { updateReading(sensor.simulateReading(), "simulated"); toast("Lectura simulada recibida"); });
+    document.querySelector("#connectButton")?.addEventListener("click", () => { updateReading(sensor.simulateReading(), "simulated"); toast("Lectura simulada recibida"); });
   }
   if (name === "quick") document.querySelector("#saveQuick").addEventListener("click", async () => {
     const input = document.querySelector("#manualPh"), location = await captureLocation(document.querySelector("#quickGps").checked, "#gpsState");
@@ -252,6 +277,10 @@ function bind(name, id) {
     document.querySelector("#mapCampaign").addEventListener("change", event => { state.mapCampaignId = event.target.value; saveState(); render(); });
     app.querySelectorAll("[data-map-lot]").forEach(button => button.addEventListener("click", () => { const lotId = button.dataset.mapLot, selected = [...state.mapLots]; if (selected.includes(lotId)) { document.querySelector("#mapError").textContent = "La comparación requiere exactamente 2 lotes."; return; } state.mapLots = [selected.at(-1), lotId].filter(Boolean); saveState(); render(); }));
   }
+  if (name === "sync" && pilotMode) {
+    document.querySelector("#syncNow")?.addEventListener("click", async event => { const button = event.currentTarget, error = document.querySelector("#syncError"); button.disabled = true; error.textContent = ""; try { const count = await remote.syncPending(); toast(`${count} cambios sincronizados`); await startPilot(); render(); } catch (failure) { error.textContent = failure.message; button.disabled = false; } });
+    document.querySelector("#signOut")?.addEventListener("click", async () => { await auth.signOut(); state.activated = false; state.technicianId = null; state.currentSessionId = null; saveState(); demoData = null; go("activate"); });
+  }
 }
 
 backButton.addEventListener("click", () => history.back());
@@ -260,9 +289,31 @@ window.addEventListener("hashchange", render);
 window.addEventListener("online", () => { updateChrome(); toast("Conexión recuperada"); });
 window.addEventListener("offline", () => { updateChrome(); toast("Modo offline: los datos seguirán guardándose localmente"); });
 
+async function startPilot() {
+  const session = await auth.validSession();
+  const userId = session?.user?.id || auth.userId();
+  if (!userId) throw new Error("Inicia sesión para abrir el piloto");
+  setStorageScope(userId);
+  demoData = navigator.onLine ? await remote.load(userId) : await remote.loadCached(userId);
+  state.technicianId = userId;
+  state.activated = true;
+  saveState();
+  return demoData;
+}
+
 try {
-  [demoData, agronomy] = await Promise.all([seedDemoData(), loadAgronomy()]);
-  if (!location.hash) go(state.activated ? "home" : "activate"); else render();
+  agronomy = await loadAgronomy();
+  if (pilotMode) {
+    const redirectSession = auth.captureRedirectSession();
+    if (redirectSession) render();
+    else if (await auth.validSession()) {
+      try { await startPilot(); if (!location.hash || route().name === "activate") go("home"); else render(); }
+      catch (failure) { console.error(failure); state.activated = false; saveState(); auth.clearSession(); go("activate"); toast(failure.message); }
+    } else { state.activated = false; saveState(); if (!location.hash || route().name !== "activate") go("activate"); else render(); }
+  } else {
+    demoData = await seedDemoData();
+    if (!location.hash) go(state.activated ? "home" : "activate"); else render();
+  }
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js");
 } catch (error) {
   console.error(error); app.innerHTML = `<div class="notice error"><strong>No fue posible iniciar la aplicación.</strong><br>${escapeHTML(error.message)}</div>`;

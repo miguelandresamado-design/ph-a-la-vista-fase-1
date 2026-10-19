@@ -1,10 +1,11 @@
-const CACHE = "ph-a-la-vista-fase1-v0.2.1-security";
+const CACHE = "ph-a-la-vista-fase1-v0.3.0-pilot";
 const ASSETS = [
   "./", "./index.html", "./manifest.webmanifest", "./assets/css/app.css",
   "./assets/js/app.js", "./assets/js/core/db.js", "./assets/js/core/seed.js",
   "./assets/js/modules/stats.js", "./assets/js/modules/agronomy.js", "./assets/js/modules/sync.js",
   "./assets/js/modules/geolocation.js", "./assets/js/modules/bluetooth.js", "./assets/js/modules/charts.js",
-  "./assets/js/modules/csv.js", "./config/demo-data.json", "./config/agronomy.json",
+  "./assets/js/modules/csv.js", "./assets/js/modules/auth.js", "./assets/js/modules/remote.js",
+  "./config/app.js", "./config/demo-data.json", "./config/agronomy.json",
   "./assets/js/modules/lots.js",
   "./icons/icon.svg", "./icons/icon-192.png", "./icons/icon-512.png"
 ];
