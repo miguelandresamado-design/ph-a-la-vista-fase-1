@@ -1,6 +1,6 @@
-# pH a la vista · Fase 1 · v0.2.0
+# pH a la vista · Fase 1 · v0.2.1-security
 
-Iteración del piloto enfocada en el control de usuarios, fincas y lotes.
+Versión de endurecimiento previa al piloto. Todavía no contiene usuarios ni datos reales.
 
 ## Incluye
 
@@ -22,6 +22,12 @@ Iteración del piloto enfocada en el control de usuarios, fincas y lotes.
 - Cola local de sincronización.
 - Manifest, Service Worker e iconos PWA.
 - Esquema inicial de Supabase con RLS.
+- Segunda migración con validación relacional, mediciones inmutables y mínimos privilegios.
+- Auditoría generada mediante triggers de base de datos.
+- Escape de texto no confiable en gráficos SVG.
+- Protección contra fórmulas maliciosas en CSV.
+- Política CSP y política de referencia en la aplicación.
+- Preparación para separar y eliminar el almacenamiento offline por usuario autenticado.
 
 ## Simulado o pendiente
 
@@ -33,6 +39,6 @@ Iteración del piloto enfocada en el control de usuarios, fincas y lotes.
 ## Verificación automatizada
 
 - Sintaxis JavaScript: aprobada.
-- Pruebas automatizadas de permisos, validación y datos públicos incluidas.
+- Pruebas automatizadas de permisos, validación, datos públicos y controles de seguridad incluidas.
 - Archivos principales servidos por HTTP: respuesta 200.
 - Datos reales o secretos: no incluidos.

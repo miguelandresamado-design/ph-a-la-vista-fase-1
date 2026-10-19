@@ -1,4 +1,4 @@
-const CACHE = "ph-a-la-vista-fase1-v0.2.0";
+const CACHE = "ph-a-la-vista-fase1-v0.2.1-security";
 const ASSETS = [
   "./", "./index.html", "./manifest.webmanifest", "./assets/css/app.css",
   "./assets/js/app.js", "./assets/js/core/db.js", "./assets/js/core/seed.js",

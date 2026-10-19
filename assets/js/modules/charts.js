@@ -1,5 +1,11 @@
 const SERIES = ["#17663a", "#397eb7", "#a9783f"];
 
+function escapeXML(value) {
+  return String(value ?? "").replace(/[&<>"']/g, character => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  })[character]);
+}
+
 export function lineChart(series, campaigns) {
   const width = 360, height = 245, left = 42, right = 342, top = 24, bottom = 190;
   const all = series.flatMap(item => item.values.map(point => point.value)).filter(Number.isFinite);
@@ -9,7 +15,7 @@ export function lineChart(series, campaigns) {
   const y = value => bottom - ((value - min) / (max - min)) * (bottom - top);
   const ticks = [min, min + (max - min) / 3, min + 2 * (max - min) / 3, max];
   const grid = ticks.map(value => `<line class="chart-grid" x1="${left}" y1="${y(value).toFixed(1)}" x2="${right}" y2="${y(value).toFixed(1)}"/><text class="chart-axis" x="5" y="${(y(value) + 4).toFixed(1)}">${value.toFixed(1)}</text>`).join("");
-  const xLabels = campaigns.map((campaign, index) => `<text class="chart-axis" text-anchor="middle" x="${x(index)}" y="218">${campaign.name.split(" ")[0].slice(0,3)}</text>`).join("");
+  const xLabels = campaigns.map((campaign, index) => `<text class="chart-axis" text-anchor="middle" x="${x(index)}" y="218">${escapeXML(campaign.name.split(" ")[0].slice(0,3))}</text>`).join("");
   const paths = series.map((item, seriesIndex) => {
     let path = "", active = false;
     item.values.forEach((point, index) => {
@@ -18,11 +24,13 @@ export function lineChart(series, campaigns) {
       active = true;
     });
     const color = SERIES[seriesIndex];
-    const points = item.values.map((point, index) => Number.isFinite(point.value) ? `<circle cx="${x(index)}" cy="${y(point.value).toFixed(1)}" r="5" fill="var(--surface)" stroke="${color}" stroke-width="3"><title>${item.name}: ${point.value.toFixed(2)} pH · ${campaigns[index].name}</title></circle>` : "").join("");
+    const points = item.values.map((point, index) => Number.isFinite(point.value) ? `<circle cx="${x(index)}" cy="${y(point.value).toFixed(1)}" r="5" fill="var(--surface)" stroke="${color}" stroke-width="3"><title>${escapeXML(item.name)}: ${point.value.toFixed(2)} pH · ${escapeXML(campaigns[index].name)}</title></circle>` : "").join("");
     return `<path d="${path.trim()}" fill="none" stroke="${color}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>${points}`;
   }).join("");
   return `<svg class="trend-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="Comparación temporal de pH por lote">${grid}${xLabels}${paths}</svg>`;
 }
+
+export { escapeXML };
 
 export function seriesColor(index) { return SERIES[index % SERIES.length]; }
 

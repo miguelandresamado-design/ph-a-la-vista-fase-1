@@ -22,8 +22,10 @@ config/agronomy.json
 config/app.example.js
 config/demo-data.json
 docs/TEST-MATRIX.md
+docs/PILOT-SECURITY-GATE.md
 icons/icon.svg
 icons/icon-192.png
 icons/icon-512.png
 supabase/migrations/001_schema.sql
+supabase/migrations/002_security_hardening.sql
 tests/core.test.mjs

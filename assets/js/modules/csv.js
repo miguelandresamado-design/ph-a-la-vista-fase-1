@@ -1,7 +1,11 @@
 export function toCSV(rows) {
   if (!rows.length) return "";
   const columns = Object.keys(rows[0]);
-  const quote = value => `"${String(value ?? "").replaceAll('"', '""')}"`;
+  const safeValue = value => {
+    const text = String(value ?? "");
+    return /^[\t\r\n ]*[=+\-@]/.test(text) ? `'${text}` : text;
+  };
+  const quote = value => `"${safeValue(value).replaceAll('"', '""')}"`;
   return [columns.map(quote).join(","), ...rows.map(row => columns.map(column => quote(row[column])).join(","))].join("\r\n");
 }
 

@@ -7,7 +7,7 @@ import { median, mean, stddev, summarize, validPh } from "../assets/js/modules/s
 import { interpretValue } from "../assets/js/modules/agronomy.js";
 import { toCSV } from "../assets/js/modules/csv.js";
 import { deduplicateOperations } from "../assets/js/modules/sync.js";
-import { trendText } from "../assets/js/modules/charts.js";
+import { escapeXML, trendText } from "../assets/js/modules/charts.js";
 import { activeLots, normalizeLotInput, validateLotInput } from "../assets/js/modules/lots.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -73,6 +73,16 @@ test("CSV escapa comillas, comas y saltos", () => {
   assert.match(csv, /"línea 1\nlínea 2"/);
 });
 
+test("CSV neutraliza fórmulas de hoja de cálculo", () => {
+  const csv = toCSV([{ lote: "=HYPERLINK(\"https://example.invalid\")", nota: "+SUM(1,1)" }]);
+  assert.match(csv, /"'=HYPERLINK/);
+  assert.match(csv, /"'\+SUM/);
+});
+
+test("gráficos escapan texto no confiable", () => {
+  assert.equal(escapeXML(`<img onerror="alert(1)">`), "&lt;img onerror=&quot;alert(1)&quot;&gt;");
+});
+
 test("deduplica operaciones por entidad y registro", () => {
   const result = deduplicateOperations([
     { id: "a", entity: "measurements", record_id: "m1" },
@@ -91,11 +101,27 @@ test("tendencia se deriva de valores", () => {
 
 test("Service Worker usa caché versionado y lista estática", () => {
   const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
-  assert.match(sw, /ph-a-la-vista-fase1-v0\.2\.0/);
+  assert.match(sw, /ph-a-la-vista-fase1-v0\.2\.1-security/);
   assert.match(sw, /allowed\.has/);
   assert.doesNotMatch(sw, /supabase\.co/);
   const paths = [...sw.matchAll(/"\.\/([^"\n]+)"/g)].map(match => match[1]).filter(file => file && file !== "");
   paths.forEach(file => assert.equal(fs.existsSync(path.join(root, file)), true, `Falta ${file}`));
+});
+
+test("la página aplica una política de contenido restrictiva", () => {
+  const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
+  assert.match(html, /Content-Security-Policy/i);
+  assert.match(html, /script-src 'self'/i);
+  assert.match(html, /object-src 'none'/i);
+  assert.match(html, /name="referrer" content="no-referrer"/i);
+});
+
+test("el almacenamiento local permite separar y borrar ámbitos de usuario", () => {
+  const db = fs.readFileSync(path.join(root, "assets/js/core/db.js"), "utf8");
+  assert.match(db, /export function setStorageScope/);
+  assert.match(db, /export function deleteStorageScope/);
+  assert.match(db, /ph-a-la-vista-fase-1/);
+  assert.match(db, /ph-cultivos-fase-1/);
 });
 
 test("no hay credenciales secretas configuradas", () => {
@@ -114,4 +140,16 @@ test("migración prepara RLS para las tablas sensibles", () => {
   assert.match(sql, /create policy lots_update_assigned/i);
   assert.doesNotMatch(sql, /create policy lots_delete/i);
   assert.match(sql, /create trigger lots_keep_farm/i);
+});
+
+test("endurecimiento valida relaciones, inmutabilidad y auditoría", () => {
+  const sql = fs.readFileSync(path.join(root, "supabase/migrations/002_security_hardening.sql"), "utf8");
+  assert.match(sql, /validate_sampling_session_scope/i);
+  assert.match(sql, /validate_measurement_scope/i);
+  assert.match(sql, /Una medición sincronizada es inmutable/i);
+  assert.match(sql, /capture_audit_event/i);
+  assert.match(sql, /drop policy if exists audit_insert_own/i);
+  assert.match(sql, /revoke all privileges on all tables in schema public from anon/i);
+  assert.match(sql, /grant select, insert, update on public\.lots/i);
+  assert.doesNotMatch(sql, /grant[^;]*delete[^;]*public\.lots/i);
 });
