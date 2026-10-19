@@ -1,7 +1,7 @@
 const CACHE = "ph-a-la-vista-fase1-v0.3.0-pilot";
 const ASSETS = [
   "./", "./index.html", "./manifest.webmanifest", "./assets/css/app.css",
-  "./assets/js/app.js", "./assets/js/core/db.js", "./assets/js/core/seed.js",
+  "./assets/js/app.js?v=0.3.0", "./assets/js/core/db.js", "./assets/js/core/seed.js",
   "./assets/js/modules/stats.js", "./assets/js/modules/agronomy.js", "./assets/js/modules/sync.js",
   "./assets/js/modules/geolocation.js", "./assets/js/modules/bluetooth.js", "./assets/js/modules/charts.js",
   "./assets/js/modules/csv.js", "./assets/js/modules/auth.js", "./assets/js/modules/remote.js",

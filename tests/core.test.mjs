@@ -104,7 +104,7 @@ test("Service Worker usa caché versionado y lista estática", () => {
   assert.match(sw, /ph-a-la-vista-fase1-v0\.3\.0-pilot/);
   assert.match(sw, /allowed\.has/);
   assert.doesNotMatch(sw, /supabase\.co/);
-  const paths = [...sw.matchAll(/"\.\/([^"\n]+)"/g)].map(match => match[1]).filter(file => file && file !== "");
+  const paths = [...sw.matchAll(/"\.\/([^"\n]+)"/g)].map(match => match[1].split("?")[0]).filter(file => file && file !== "");
   paths.forEach(file => assert.equal(fs.existsSync(path.join(root, file)), true, `Falta ${file}`));
 });
 
